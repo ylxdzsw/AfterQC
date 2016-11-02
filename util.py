@@ -1,5 +1,5 @@
  #!/usr/bin/env python
- 
+
 import os,sys
 from ctypes import *
 
@@ -28,9 +28,15 @@ if EDIT_DISTANCE_MODULE_EXISTS==False and EDIT_DISTANCE_CTYPES_LOADED == False:
     print("If you are using python, run: pip install editdistance")
     print("If you are using pypy, run: make, in AfterQC folder to build editdistance with ctypes")
 
+# try load C extensions
+try:
+    from c_ext.util import ffi, lib
+    C_EXT = True
+except ImportError:
+    C_EXT = False
 
 COMP = {"A" : "T", "T" : "A", "C" : "G", "G" : "C", "a" : "t", "t" : "a", "c" : "g", "g" : "c", "N":"N", "\n":"\n"}
-    
+
 def parseBool(str):
     str = str.lower()
     if str=="true" or str=="yes" or str=="on":
@@ -46,6 +52,10 @@ def qualNum(q):
 
 def reverseComplement(origin):
     length = len(origin)
+
+    if C_EXT:
+        return ffi.string(lib.reverseComplement(length, origin))
+
     revCompArr = ['' for x in xrange(length)]
     for i in xrange(length):
         orig = origin[length - i -1]

@@ -1,0 +1,19 @@
+{
+  "transport": "scp",
+  "uploadOnSave": false,
+  "useAtomicWrites": false,
+  "deleteLocal": false,
+  "hostname": "x03",
+  "port": "22",
+  "target": "/home/zhangsw/AfterQC",
+  "ignore": [
+    ".remote-sync.json",
+    ".git/**",
+    ".cache",
+    "__pycache__",
+    ".coverage"
+  ],
+  "username": "zhangsw",
+  "keyfile": "C:\\Users\\ylxdzsw\\.ssh\\id_rsa",
+  "watch": []
+}
