@@ -1,5 +1,5 @@
  #!/usr/bin/env python
- 
+
 import os,sys
 import re
 from optparse import OptionParser
@@ -10,6 +10,13 @@ import barcodeprocesser
 import json
 from qualitycontrol import *
 from qcreporter import QCReporter
+
+# try load C extensions
+try:
+    from c_ext.preprocesser import ffi, lib
+    C_EXT = True
+except ImportError:
+    C_EXT = False
 
 def getMainName(filename):
     baseName = os.path.basename(filename)
@@ -24,32 +31,36 @@ def trim(read, front, tail):
     else:
         read[1] = read[1][front:]
         read[3] = read[3][front:]
-        
+
     return read
-    
+
 def hasPolyX(seq, maxPoly, mismatch):
+    if C_EXT:
+        X = lib.hasPolyX(len(seq), seq, maxPoly, mismatch)
+        return None if X == '\0' else X
+
     if(len(seq)<maxPoly):
         return None
-    
+
     polyCount = {}
     polyArray = ("A", "T", "C", "G", "a", "t", "c", "g", "N")
     for poly in polyArray: polyCount[poly] = 0
-    
+
     for x in xrange(len(seq)):
         frontbase = seq[x]
-        
+
         if not frontbase in polyArray:
             return None
-        
+
         if x >= maxPoly:
             tailbase = seq[x-maxPoly]
             polyCount[tailbase] -= 1
-        
+
         polyCount[frontbase] += 1
         if polyCount[frontbase] >= maxPoly - mismatch:
             return frontbase
     return None
-    
+
 def minQuality(read):
     qualStr = read[3]
     minQual = 255
@@ -57,7 +68,7 @@ def minQuality(read):
         if minQual > ord(q):
             minQual = ord(q)
     return minQual - 33
-    
+
 def lowQualityNum(read, qual):
     qual += 33
     qualStr = read[3]
@@ -66,7 +77,7 @@ def lowQualityNum(read, qual):
         if ord(q) < qual:
             lowQualNum += 1
     return lowQualNum
-    
+
 def nNumber(read):
     seqStr = read[1]
     nNum = 0
@@ -136,16 +147,16 @@ def merge_error_matrix(merge_to, merge_from):
         for error_base in ALL_BASES:
             if correct_base != error_base:
                 merge_to[correct_base][error_base] += merge_from[correct_base][error_base]
-    
+
 ########################### seqFilter
 class seqFilter:
-    
+
     #opt is an object contains lots of parameters
     def __init__(self, opt):
         self.options = opt
         self.bubbleCircles = {}
         self.bubbleTiles = []
-        
+
         #detect if the input is paired and if it has index files
         if self.options.read2_file != None:
             self.paired = True
@@ -172,7 +183,7 @@ class seqFilter:
                     self.bubbleTiles.append(tile)
                     self.bubbleCircles[tile]=[]
                 self.bubbleCircles[tile].append(circle)
-    
+
     def isInBubble(self, seqInfo):
         #illumina sequence name line format
         #@<instrument>:<run number>:<flowcell ID>:<lane>:<tile_no>:<x-pos>:<y-pos> <read>:<is filtered>:<control number>:<index sequence>
@@ -184,7 +195,7 @@ class seqFilter:
         items = match.group().split(":")
         if len(items) < 7:
             return False
-            
+
         lane = int(items[3])
         tile_no = items[4]
         tile = int(tile_no[1:])
@@ -200,7 +211,7 @@ class seqFilter:
             if clane == lane:
                 if (cx-x)*(cx-x) + (cy-y)*(cy-y) < cr*cr:
                     return True
-                    
+
         return False
 
     def writeReads(self, r1, r2, i1, i2, r1_file, r2_file, i1_file, i2_file, flag):
@@ -278,16 +289,16 @@ class seqFilter:
                         self.options.trim_front2 = trimFront2
                     if self.options.trim_tail2 == -1:
                         self.options.trim_tail2 = trimTail2
-                
+
         print(self.options.read1_file + " options:")
         print(self.options)
-        
+
         #if good output folder not specified, set it as the same folder of read1 file
         good_dir = self.options.good_output_folder
         if good_dir == None:
             good_dir = os.path.dirname(self.options.read1_file)
 
-        #if bad output folder not specified, set it as the same folder of read1 file            
+        #if bad output folder not specified, set it as the same folder of read1 file
         bad_dir = self.options.bad_output_folder
         if bad_dir == None:
             bad_dir = os.path.join(os.path.dirname(os.path.dirname(good_dir+"/")), "bad")
@@ -305,16 +316,16 @@ class seqFilter:
         qc_dir =  os.path.join(qc_base_folder, os.path.basename(self.options.read1_file))
         if not os.path.exists(qc_dir):
             os.makedirs(qc_dir)
-            
+
         if not os.path.exists(good_dir):
             os.makedirs(good_dir)
-            
+
         if not os.path.exists(bad_dir):
             os.makedirs(bad_dir)
 
         if self.options.store_overlap and self.options.read2_file != None and (not os.path.exists(overlap_dir)):
             os.makedirs(overlap_dir)
-        
+
         good_read1_file = None
         bad_read1_file = None
         overlap_read1_file = None
@@ -325,7 +336,7 @@ class seqFilter:
             overlap_read1_file = None
             if self.options.store_overlap:
                 overlap_read1_file = fastq.Writer(os.path.join(overlap_dir, getMainName(self.options.read1_file)+".overlap.fq"))
-        
+
         #other files are optional
         read2_file = None
         good_read2_file = None
@@ -341,7 +352,7 @@ class seqFilter:
         good_index2_file = None
         bad_index2_file = None
         overlap_index2_file = None
-        
+
         #if other files are specified, then read them
         if self.options.read2_file != None:
             read2_file = fastq.Reader(self.options.read2_file)
@@ -364,7 +375,7 @@ class seqFilter:
                 bad_index2_file = fastq.Writer(os.path.join(bad_dir, getMainName(self.options.index2_file)+".bad.fq"))
                 if self.options.store_overlap and self.options.read2_file != None:
                     overlap_index2_file = fastq.Writer(os.path.join(overlap_dir, getMainName(self.options.index2_file)+".overlap.fq"))
-            
+
         r1 = None
         r2 = None
         i1 = None
@@ -403,7 +414,7 @@ class seqFilter:
                 break
             else:
                 TOTAL_BASES += len(r1[1])
-                
+
             if read2_file != None:
                 r2 = read2_file.nextRead()
                 if r2==None:
@@ -420,7 +431,7 @@ class seqFilter:
                     TOTAL_BASES += len(r2[1])
 
             TOTAL_READS += 1
-                    
+
             #barcode processing
             if self.options.barcode:
                 barcodeLen1 = barcodeprocesser.detectBarcode(r1[1], self.options.barcode_length, self.options.barcode_verify)
@@ -439,7 +450,7 @@ class seqFilter:
                             continue
                         else:
                             barcodeprocesser.moveAndTrimPair(r1, r2, barcodeLen1, barcodeLen2, self.options.barcode_verify)
-            
+
             #trim
             if self.options.trim_front > 0 or self.options.trim_tail > 0:
                 r1 = trim(r1, self.options.trim_front, self.options.trim_tail)
@@ -460,13 +471,13 @@ class seqFilter:
                     self.writeReads(r1, r2, i1, i2, bad_read1_file, bad_read2_file, bad_index1_file, bad_index2_file, "BADBBL")
                     BADBBL += 1
                     continue
-            
+
             #filter sequence length
             if len(r1[1])<self.options.seq_len_req:
                 self.writeReads(r1, r2, i1, i2, bad_read1_file, bad_read2_file, bad_index1_file, bad_index2_file, "BADLEN")
                 BADLEN += 1
                 continue
-                    
+
             #check polyX
             if self.options.poly_size_limit > 0:
                 poly1 = hasPolyX(r1[1], self.options.poly_size_limit, self.options.allow_mismatch_in_poly)
@@ -477,7 +488,7 @@ class seqFilter:
                     self.writeReads(r1, r2, i1, i2, bad_read1_file, bad_read2_file, bad_index1_file, bad_index2_file, "BADPOL")
                     BADPOL += 1
                     continue
-            
+
             #check low quality count
             if self.options.unqualified_base_limit > 0:
                 lowQual1 = lowQualityNum(r1, self.options.qualified_quality_phred)
@@ -488,7 +499,7 @@ class seqFilter:
                     self.writeReads(r1, r2, i1, i2, bad_read1_file, bad_read2_file, bad_index1_file, bad_index2_file, "BADLQC")
                     BADLQC += 1
                     continue
-            
+
             #check N number
             if self.options.n_base_limit > 0:
                 nNum1 = nNumber(r1)
@@ -585,7 +596,7 @@ class seqFilter:
                         if self.options.store_overlap:
                             self.writeReads(getOverlap(r1, overlap_len), getOverlap(r2, overlap_len), i1, i2, overlap_read1_file, overlap_read2_file, overlap_index1_file, overlap_index2_file, None)
 
-            #write to good       
+            #write to good
             self.writeReads(r1, r2, i1, i2, good_read1_file, good_read2_file, good_index1_file, good_index2_file, None)
             GOOD_BASES += len(r1[1])
             if i2 != None:
@@ -604,7 +615,7 @@ class seqFilter:
         if self.options.read2_file != None:
             self.r2qc_postfilter.qc()
             #self.r2qc_postfilter.plot(qc_dir, "R2-postfilter")
-        
+
         #close all files
         if not self.options.qc_only:
             good_read1_file.flush()
@@ -737,5 +748,3 @@ class seqFilter:
             reporter.addFigure('GC curve after filtering', self.r1qc_postfilter.gcPlotly("r1_post_gc", 'GC curve after filtering'), 'r1_post_gc', "")
             reporter.addFigure('Per base discontinuity after filtering', self.r1qc_postfilter.discontinuityPlotly("r1_post_discontinuity", 'Discontinuity curve after filtering'), 'r1_post_discontinuity', "")
             reporter.addFigure('Kmer strand bias after filtering', self.r1qc_postfilter.strandBiasPlotly("r1_post_sb", 'Kmer strand bias after filtering'), 'r1_post_sb', "")
-
-
