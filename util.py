@@ -83,6 +83,8 @@ def editDistance(s1, s2):
         return editdistance.eval(s1, s2)
     elif EDIT_DISTANCE_CTYPES_LOADED:
         return ed_ctypes.edit_distance(s1, len(s1), s2, len(s2))
+    elif C_EXT:
+        return lib.editDistance(len(s1), s1, len(s2), s2)
 
     m=len(s1)+1
     n=len(s2)+1
