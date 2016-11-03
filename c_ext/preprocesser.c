@@ -43,3 +43,21 @@ char hasPolyX(int len, char* seq, int maxPoly, int mismatch) {
 
     return '\0';
 }
+
+int lowQualityNum(int len, char* seq, int qual) {
+    int i, lowQualNum = 0;
+    qual += 33;
+
+    for (i=0; i<len; i++)
+        lowQualNum += seq[i] < qual;
+
+    return lowQualNum;
+}
+
+int nNumber(int len, char* seq) {
+    int i, s = 0;
+    for (i=0; i<len; i++) {
+        s += seq[i] == 'N';
+    }
+    return s;
+}

@@ -70,8 +70,12 @@ def minQuality(read):
     return minQual - 33
 
 def lowQualityNum(read, qual):
-    qual += 33
     qualStr = read[3]
+
+    if C_EXT:
+        return lib.lowQualityNum(len(qualStr), qualStr, qual)
+
+    qual += 33
     lowQualNum = 0
     for q in qualStr:
         if ord(q) < qual:
@@ -80,6 +84,10 @@ def lowQualityNum(read, qual):
 
 def nNumber(read):
     seqStr = read[1]
+
+    if C_EXT:
+        return lib.nNumber(len(seqStr), seqStr)
+
     nNum = 0
     for s in seqStr:
         if s == 'N':
