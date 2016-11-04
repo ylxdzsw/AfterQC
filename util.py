@@ -107,6 +107,16 @@ def overlap(r1, r2):
     len2 = len(r2)
     reverse_r2 = reverseComplement(r2)
 
+    if C_EXT:
+        data = ffi.new("int[]", 3)
+        lib.overlap(len1, r1, len2, reverse_r2, data)
+        offset, length, distance = data
+
+        if length != 0 and distance <= distance_threshold(length):
+            return offset, length, distance
+        else:
+            return 0, 0, 0
+
     overlapped = False
     overlap_len = 0
     offset = 0
